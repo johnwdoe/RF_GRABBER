@@ -44,10 +44,10 @@ ISR(TIMER1_CAPT_vect)
 	TCNT1 = 0;
 	//ch. sensing edge
 	TCCR1B ^= (1<<ICES1);
-	TIFR |= (1<<ICF1);
-	if (!(rf_flags&F_WAIT_START_SIL))
+	TIFR |= (1<<ICF1); //reset interrupt flag
+	if (!(rf_flags&F_WAIT_START_SIL)) //start silence evt. already happened
 	{
-		//enable OC interrupt
+		//enable OC interrupt (wait for stop silence)
 		TIMSK |= (1<<OCIE1A);
 		TIFR |= (1<<OCF1A); //reset interrupt flag
 		rf_buf[rf_buf_cursor] = ICR1; //store value
@@ -56,7 +56,10 @@ ISR(TIMER1_CAPT_vect)
 			//buffer full. exit
 			//stop timer
 			TCCR1B &= ~(7<<CS10);
-			rf_on_complete();
+			//disable interrupts
+			TIMSK &= ~(1<<OCIE1A | 1<<TICIE1);
+			TIFR |= (1<<ICF1 | 1<<OCF1A);
+			rf_on_complete(); //external event
 		}
 		else
 		{
@@ -67,23 +70,22 @@ ISR(TIMER1_CAPT_vect)
 
 ISR(TIMER1_COMPA_vect)
 {
-	if (rf_flags&F_GRAB)
+	if (rf_flags&F_GRAB) //we are in rx mode
 	{
-		//grab mode
-		if (rf_flags&F_WAIT_START_SIL)
+		if (rf_flags&F_WAIT_START_SIL) //still waiting for silence?
 		{
-			if (!(PINB & (1<<PB0)))
+			if (!(PINB & (1<<PB0))) //rx pin in low state?
 			{
-				rf_flags &= ~F_WAIT_START_SIL;//silence in low state - OK
-				//disable OC interrupt
-				TIMSK &= ~(1<<OCIE1A);
+				rf_flags &= ~F_WAIT_START_SIL;//start silence evt happened
+
+				TIMSK &= ~(1<<OCIE1A);//disable OC interrupt
 				OCR1A = US_TO_TICKS(SILENCE_BEFORE_STOP_US); //new value of waiting time
 				TIFR |= (1<<OCF1A); //reset flag
 			}
 		}
 		else
 		{
-			//scan in progress
+			//timeout while scan in progress
 			//stop timer
 			TCCR1B &= ~(7<<CS10);
 			rf_on_complete();

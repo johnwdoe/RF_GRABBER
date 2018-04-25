@@ -21,7 +21,7 @@
 #define F_TX_COMPLETE (8)
 
 volatile uint8_t rf_flags;
-uint8_t rf_buf[BUFFER_LEN]; //rx/tx buffer
+uint16_t rf_buf[BUFFER_LEN]; //rx/tx buffer
 volatile uint8_t rf_buf_cursor; //position on last sig. buffer cell
 /*
  * asynchronous
